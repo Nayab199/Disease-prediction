@@ -1,0 +1,90 @@
+import pandas as pd
+from sklearn.model_selection import train_test_split
+from sklearn.preprocessing import StandardScaler, LabelEncoder
+from sklearn.svm import SVC
+from sklearn.neighbors import KNeighborsClassifier
+from sklearn.naive_bayes import GaussianNB
+from sklearn.metrics import accuracy_score, confusion_matrix, roc_curve, roc_auc_score
+import matplotlib.pyplot as plt
+
+# Load the dataset
+file_path = 'testt.csv'  # Update with your file path
+data = pd.read_csv(file_path)
+
+# Separating features and target variable
+X = data.drop('prognosis', axis=1)
+y = data['prognosis']
+
+# Encoding the target variable
+label_encoder = LabelEncoder()
+y_encoded = label_encoder.fit_transform(y)
+
+# Splitting the data into training and testing sets
+X_train, X_test, y_train, y_test = train_test_split(X, y_encoded, test_size=0.2, random_state=42)
+
+# Standardizing the features
+scaler = StandardScaler()
+X_train_scaled = scaler.fit_transform(X_train)
+X_test_scaled = scaler.transform(X_test)
+
+# Applying SVM
+svm_clf = SVC(probability=True)
+svm_clf.fit(X_train_scaled, y_train)
+y_pred_svm = svm_clf.predict(X_test_scaled)
+accuracy_svm = accuracy_score(y_test, y_pred_svm)
+
+# Applying KNN
+knn_clf = KNeighborsClassifier()
+knn_clf.fit(X_train_scaled, y_train)
+y_pred_knn = knn_clf.predict(X_test_scaled)
+accuracy_knn = accuracy_score(y_test, y_pred_knn)
+
+# Applying Naive Bayes
+nb_clf = GaussianNB()
+nb_clf.fit(X_train_scaled, y_train)
+y_pred_nb = nb_clf.predict(X_test_scaled)
+accuracy_nb = accuracy_score(y_test, y_pred_nb)
+
+# Initialize dictionaries to store confusion matrices and ROC curve data
+confusion_matrices = {}
+roc_curves = {}
+
+# List of classifiers and their predictions
+classifiers = {'SVM': svm_clf, 'KNN': knn_clf, 'Naive Bayes': nb_clf}
+y_preds = {'SVM': y_pred_svm, 'KNN': y_pred_knn, 'Naive Bayes': y_pred_nb}
+
+# Calculate confusion matrices and ROC curves
+for clf_name, clf in classifiers.items():
+    y_pred = y_preds[clf_name]
+    
+    # Confusion matrix
+    cm = confusion_matrix(y_test, y_pred)
+    confusion_matrices[clf_name] = cm
+    print(f"Confusion Matrix for {clf_name}:\n{cm}\n")
+    
+    # ROC curve and AUC
+    fpr = {}
+    tpr = {}
+    roc_auc = {}
+
+    # Compute ROC curve and ROC area for each class
+    for i in range(len(label_encoder.classes_)):
+        y_test_binary = (y_test == i).astype(int)
+        y_pred_proba = clf.predict_proba(X_test_scaled)[:, i]
+        fpr[i], tpr[i], _ = roc_curve(y_test_binary, y_pred_proba)
+        roc_auc[i] = roc_auc_score(y_test_binary, y_pred_proba)
+
+    roc_curves[clf_name] = {'fpr': fpr, 'tpr': tpr, 'roc_auc': roc_auc}
+
+    # Plotting ROC curve
+    plt.figure()
+    for i in range(len(label_encoder.classes_)):
+        plt.plot(fpr[i], tpr[i], label=f'Class {label_encoder.classes_[i]} (area = {roc_auc[i]:.2f})')
+    plt.plot([0, 1], [0, 1], 'k--')
+    plt.xlim([0.0, 1.0])
+    plt.ylim([0.0, 1.05])
+    plt.xlabel('False Positive Rate')
+    plt.ylabel('True Positive Rate')
+    plt.title(f'ROC Curve for {clf_name}')
+    plt.legend(loc='lower right')
+    plt.show()
